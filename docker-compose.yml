@@ -1,0 +1,171 @@
+services:
+  # Database: PostgreSQL
+  db:
+    image: postgres:16-alpine
+    container_name: web_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-media_archiver}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d media_archiver"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app_network
+
+  # Task Queue: Redis
+  redis:
+    image: redis:7-alpine
+    container_name: web_redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app_network
+
+  # Application Server 1
+  api1:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: web_api1
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      SERVER_NAME: API_SERVER_1
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/media_archiver?schema=public
+      REDIS_URL: redis://redis:6379
+      STORAGE_PATH: /app/storage
+      JWT_SECRET: ${JWT_SECRET:-media_archiver_jwt_super_secret_key_2026}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-50}
+      MAX_CONCURRENT_TASKS_PER_USER: ${MAX_CONCURRENT_TASKS_PER_USER:-3}
+      TASK_TIMEOUT_SECONDS: ${TASK_TIMEOUT_SECONDS:-120}
+    volumes:
+      - storage_data:/app/storage
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - app_network
+
+  # Application Server 2
+  api2:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: web_api2
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      SERVER_NAME: API_SERVER_2
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/media_archiver?schema=public
+      REDIS_URL: redis://redis:6379
+      STORAGE_PATH: /app/storage
+      JWT_SECRET: ${JWT_SECRET:-media_archiver_jwt_super_secret_key_2026}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-50}
+      MAX_CONCURRENT_TASKS_PER_USER: ${MAX_CONCURRENT_TASKS_PER_USER:-3}
+      TASK_TIMEOUT_SECONDS: ${TASK_TIMEOUT_SECONDS:-120}
+    volumes:
+      - storage_data:/app/storage
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - app_network
+
+  # Compute Worker Node 1
+  worker1:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: web_worker1
+    restart: unless-stopped
+    command: ["npm", "run", "start:worker"]
+    environment:
+      NODE_ENV: production
+      WORKER_ID: WORKER_1
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/media_archiver?schema=public
+      REDIS_URL: redis://redis:6379
+      STORAGE_PATH: /app/storage
+      TASK_TIMEOUT_SECONDS: ${TASK_TIMEOUT_SECONDS:-120}
+    volumes:
+      - storage_data:/app/storage
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - app_network
+
+  # Compute Worker Node 2
+  worker2:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: web_worker2
+    restart: unless-stopped
+    command: ["npm", "run", "start:worker"]
+    environment:
+      NODE_ENV: production
+      WORKER_ID: WORKER_2
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/media_archiver?schema=public
+      REDIS_URL: redis://redis:6379
+      STORAGE_PATH: /app/storage
+      TASK_TIMEOUT_SECONDS: ${TASK_TIMEOUT_SECONDS:-120}
+    volumes:
+      - storage_data:/app/storage
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - app_network
+
+  # Load Balancer: Nginx (Ports 80 HTTP & 443 HTTPS)
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: web_load_balancer
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - api1
+      - api2
+    networks:
+      - app_network
+
+volumes:
+  postgres_data:
+  redis_data:
+  storage_data:
+
+networks:
+  app_network:
+    driver: bridge

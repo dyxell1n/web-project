@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+dist/
+build/
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# Temporary & Uploaded Storage
+storage/
+uploads/
+temp/
+*.tmp
+
+# Persistent Docker Data
+postgres_data/
+redis_data/
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE & Editor
+.vscode/
+.idea/
+*.swp
+*.swo

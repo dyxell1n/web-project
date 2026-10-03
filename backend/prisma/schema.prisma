@@ -1,0 +1,89 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum TaskStatus {
+  PENDING
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum TaskType {
+  ARCHIVE_COMPRESS
+  MEDIA_CONVERT
+  SYNTHETIC_BENCHMARK
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String
+  name         String?
+  role         Role      @default(USER)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  tasks        Task[]
+
+  @@map("users")
+}
+
+model Task {
+  id              String      @id @default(uuid())
+  userId          String
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type            TaskType
+  status          TaskStatus  @default(PENDING)
+  progress        Int         @default(0)
+  stage           String      @default("Created")
+  
+  // Files metadata
+  inputFileName   String
+  inputFileSize   Int         // Bytes
+  inputFormat     String?
+  outputFileName  String?
+  outputFileSize  Int?        // Bytes
+  outputFormat    String?
+  
+  // Task settings (compression level, target quality, resize dimensions, etc.)
+  options         Json?
+  
+  // Execution tracking
+  executionTimeMs Int?
+  workerId        String?
+  handledByServer String?
+  errorMessage    String?
+  
+  createdAt       DateTime    @default(now())
+  startedAt       DateTime?
+  completedAt     DateTime?
+
+  @@index([userId])
+  @@index([status])
+  @@map("tasks")
+}
+
+model SystemMetric {
+  id          String   @id @default(uuid())
+  nodeName    String
+  nodeType    String   // "API" or "WORKER"
+  cpuPercent  Float
+  memPercent  Float
+  activeJobs  Int      @default(0)
+  timestamp   DateTime @default(now())
+
+  @@index([timestamp])
+  @@map("system_metrics")
+}
