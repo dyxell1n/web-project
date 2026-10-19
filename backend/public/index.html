@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <title>Cloud Media Converter & Archiver</title>
+</head>
+<body>
+  <h1>Cloud Media Converter & Archiver</h1>
+  <p>Розподілена система обробки ресурсомістких задач із балансуванням навантаження та пулом воркерів.</p>
+  <hr>
+
+  <!-- 1. Демонстрація балансування навантаження -->
+  <fieldset>
+    <legend><strong>1. Балансування навантаження (Nginx Load Balancer)</strong></legend>
+    <p>Натисніть кнопку кілька разів, щоб перевірити чергування відповідей між серверами <code>api1</code> та <code>api2</code>:</p>
+    <button type="button" id="btnPingLB">Перевірити балансувальник (Ping /health)</button>
+    <div id="lbResult" style="margin-top: 10px;">
+      <em>Статус ще не перевірявся</em>
+    </div>
+    <div id="lbStats" style="margin-top: 5px;"></div>
+  </fieldset>
+
+  <br>
+
+  <!-- 2. Автентифікація -->
+  <fieldset>
+    <legend><strong>2. Автентифікація користувача</strong></legend>
+    <div id="authLoggedOut">
+      <h3>Реєстрація</h3>
+      <form id="registerForm">
+        <label>Email: <input type="email" id="regEmail" required></label><br><br>
+        <label>Ім'я: <input type="text" id="regName" placeholder="Олександр"></label><br><br>
+        <label>Пароль (мін. 6 символів): <input type="password" id="regPassword" required></label><br><br>
+        <button type="submit">Зареєструватися</button>
+      </form>
+
+      <hr>
+
+      <h3>Вхід</h3>
+      <form id="loginForm">
+        <label>Email: <input type="email" id="loginEmail" required></label><br><br>
+        <label>Пароль: <input type="password" id="loginPassword" required></label><br><br>
+        <button type="submit">Увійти</button>
+      </form>
+    </div>
+
+    <div id="authLoggedIn" style="display: none;">
+      <p>Ви увійшли як: <strong id="userDisplayEmail"></strong> (<span id="userDisplayRole"></span>)</p>
+      <button type="button" id="btnLogout">Вийти</button>
+    </div>
+    <div id="authMessage" style="margin-top: 10px;"></div>
+  </fieldset>
+
+  <br>
+
+  <!-- 3. Створення нової задачі -->
+  <fieldset id="taskCreationSection">
+    <legend><strong>3. Створення нової задачі</strong></legend>
+    <p><strong>Обмеження трудомісткості:</strong> макс. розмір файлу — 50 МБ, макс. одночасних задач — 3, таймаут обробки — 120 с.</p>
+
+    <form id="createTaskForm">
+      <div>
+        <label><strong>Тип задачі:</strong></label><br>
+        <input type="radio" id="typeConvert" name="taskType" value="MEDIA_CONVERT" checked>
+        <label for="typeConvert">Конвертація зображення (Sharp: WebP / AVIF / JPEG / PNG)</label><br>
+
+        <input type="radio" id="typeArchive" name="taskType" value="ARCHIVE_COMPRESS">
+        <label for="typeArchive">Стиснення та архівація (ZIP / TAR.GZ)</label><br>
+
+        <input type="radio" id="typeBenchmark" name="taskType" value="SYNTHETIC_BENCHMARK">
+        <label for="typeBenchmark">Синтетичний CPU-стрес тест (обчислення великих матриць)</label>
+      </div>
+
+      <hr>
+
+      <!-- Опції зображень -->
+      <div id="mediaOptions">
+        <h4>Параметри конвертації зображення:</h4>
+        <label>Цільовий формат:
+          <select id="imgFormat">
+            <option value="webp" selected>WebP (високе стиснення)</option>
+            <option value="avif">AVIF (нове покоління)</option>
+            <option value="jpeg">JPEG</option>
+            <option value="png">PNG</option>
+          </select>
+        </label><br><br>
+        <label>Ширина (px, залиште пустим для оригіналу): <input type="number" id="imgWidth" placeholder="напр. 800"></label><br><br>
+        <label>Якість (1-100%): <input type="number" id="imgQuality" value="80" min="1" max="100"></label>
+      </div>
+
+      <!-- Опції архіву -->
+      <div id="archiveOptions" style="display: none;">
+        <h4>Параметри архівування:</h4>
+        <label>Формат архіву:
+          <select id="archiveFormat">
+            <option value="zip" selected>ZIP</option>
+            <option value="tar.gz">TAR.GZ</option>
+          </select>
+        </label><br><br>
+        <label>Рівень компресії (1-9): <input type="number" id="compressionLevel" value="9" min="1" max="9"></label><br><br>
+        <p>Немає під рукою важкого файлу для тесту? Згенеруйте його прямо на сервері:</p>
+        <button type="button" id="btnGenDemoFile">Згенерувати тестовий файл 10 МБ</button>
+        <span id="demoFileStatus"></span>
+      </div>
+
+      <!-- Опції синтетичного бенчмарку -->
+      <div id="benchmarkOptions" style="display: none;">
+        <h4>Параметри стрес-тесту обчислень:</h4>
+        <label>Рівень складності (1 — швидкий тест, 10 — максимальне CPU навантаження):
+          <input type="number" id="benchComplexity" value="5" min="1" max="10">
+        </label>
+      </div>
+
+      <hr>
+
+      <!-- Вибір файлу -->
+      <div id="fileUploadContainer">
+        <label><strong>Виберіть файл для обробки (до 50 МБ):</strong><br>
+          <input type="file" id="taskFileInput">
+        </label>
+        <div id="fileValidationError" style="color: red; margin-top: 5px;"></div>
+      </div>
+
+      <br>
+      <button type="submit" id="btnSubmitTask">Запустити задачу на виконання</button>
+    </form>
+    <div id="createTaskMessage" style="margin-top: 10px;"></div>
+  </fieldset>
+
+  <br>
+
+  <!-- 4. Живий трекер активної задачі (SSE) -->
+  <fieldset id="liveTrackerSection">
+    <legend><strong>4. Живий моніторинг поточної задачі (Server-Sent Events)</strong></legend>
+    <div id="liveTrackerEmpty">
+      <em>Немає активної задачі для моніторингу. Запустіть задачу вище або виберіть з історії.</em>
+    </div>
+    <div id="liveTrackerActive" style="display: none;">
+      <p><strong>ID задачі:</strong> <span id="trackTaskId">-</span></p>
+      <p><strong>Статус:</strong> <span id="trackTaskStatus">-</span></p>
+      <p><strong>Воркер:</strong> <span id="trackTaskWorker">-</span></p>
+      <p><strong>Поточний етап:</strong> <span id="trackTaskStage">-</span></p>
+      <p>
+        <strong>Прогрес:</strong>
+        <progress id="trackProgressBar" value="0" max="100"></progress>
+        <span id="trackProgressText">0%</span>
+      </p>
+      <div id="trackCancelContainer">
+        <button type="button" id="btnCancelActiveTask">Скасувати задачу</button>
+      </div>
+      <div id="trackDownloadContainer" style="display: none; margin-top: 10px;">
+        <p><strong>Результат готовий!</strong></p>
+        <a id="trackDownloadLink" href="#" target="_blank">Завантажити готовий файл</a>
+      </div>
+      <div id="trackErrorContainer" style="display: none; color: red; margin-top: 10px;">
+        <p><strong>Помилка:</strong> <span id="trackErrorMessage"></span></p>
+      </div>
+    </div>
+  </fieldset>
+
+  <br>
+
+  <!-- 5. Історія задач -->
+  <fieldset>
+    <legend><strong>5. Історія виконаних та активних задач</strong></legend>
+    <button type="button" id="btnRefreshTasks">Оновити історію</button>
+    <br><br>
+    <table border="1" cellpadding="5" cellspacing="0" id="tasksTable" style="width: 100%;">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Тип</th>
+          <th>Статус</th>
+          <th>Прогрес</th>
+          <th>Вхідний файл</th>
+          <th>Результат</th>
+          <th>Час (мс)</th>
+          <th>Сервер / Воркер</th>
+          <th>Створено</th>
+          <th>Дії</th>
+        </tr>
+      </thead>
+      <tbody id="tasksTableBody">
+        <tr>
+          <td colspan="10" align="center"><em>Задачі ще не завантажені або ви не увійшли в систему</em></td>
+        </tr>
+      </tbody>
+    </table>
+  </fieldset>
+
+  <!-- Клієнтська логіка без зовнішніх бібліотек -->
+  <script>
+    const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
+    let currentToken = localStorage.getItem('jwt_token') || null;
+    let currentUser = null;
+    let activeEventSource = null;
+    let currentMonitoredTaskId = null;
+    let demoFile = null;
+
+    // Статистика балансувальника
+    const lbHits = {};
+
+    // 1. Демонстрація балансувальника
+    document.getElementById('btnPingLB').addEventListener('click', async () => {
+      const resDiv = document.getElementById('lbResult');
+      const statsDiv = document.getElementById('lbStats');
+      try {
+        const startTime = Date.now();
+        const res = await fetch('/health', { cache: 'no-store' });
+        const data = await res.json();
+        const handledBy = res.headers.get('x-handled-by') || 'N/A';
+        const servedBy = res.headers.get('x-served-by') || data.server;
+        const latency = Date.now() - startTime;
+
+        lbHits[servedBy] = (lbHits[servedBy] || 0) + 1;
+
+        resDiv.innerHTML = `
+          Остання відповідь: <strong>${servedBy}</strong><br>
+          Заголовок X-Handled-By (Nginx): <code>${handledBy}</code><br>
+          Час відповіді: ${latency} мс (Uptime сервера: ${data.uptime} с)
+        `;
+
+        let statsHtml = '<strong>Розподіл відповідей (Round-Robin):</strong> ';
+        for (const [srv, count] of Object.entries(lbHits)) {
+          statsHtml += `[${srv}: ${count} запитів] `;
+        }
+        statsDiv.innerHTML = statsHtml;
+      } catch (e) {
+        resDiv.innerHTML = `<span style="color: red;">Помилка запиту: ${e.message}</span>`;
+      }
+    });
+
+    // 2. Автентифікація
+    async function checkCurrentUser() {
+      if (!currentToken) {
+        renderAuth(false);
+        return;
+      }
+      try {
+        const res = await fetch('/api/auth/me', {
+          headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          currentUser = data.user;
+          renderAuth(true);
+          loadTasks();
+        } else {
+          logout();
+        }
+      } catch {
+        renderAuth(false);
+      }
+    }
+
+    function renderAuth(isLoggedIn) {
+      document.getElementById('authLoggedOut').style.display = isLoggedIn ? 'none' : 'block';
+      document.getElementById('authLoggedIn').style.display = isLoggedIn ? 'block' : 'none';
+      if (isLoggedIn && currentUser) {
+        document.getElementById('userDisplayEmail').textContent = currentUser.email;
+        document.getElementById('userDisplayRole').textContent = currentUser.role;
+      }
+    }
+
+    function logout() {
+      currentToken = null;
+      currentUser = null;
+      localStorage.removeItem('jwt_token');
+      renderAuth(false);
+      if (activeEventSource) activeEventSource.close();
+      document.getElementById('tasksTableBody').innerHTML = '<tr><td colspan="10" align="center"><em>Ви не увійшли в систему</em></td></tr>';
+    }
+
+    document.getElementById('btnLogout').addEventListener('click', logout);
+
+    document.getElementById('registerForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const msg = document.getElementById('authMessage');
+      msg.textContent = 'Реєстрація...';
+      try {
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: document.getElementById('regEmail').value,
+            name: document.getElementById('regName').value,
+            password: document.getElementById('regPassword').value,
+          })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          currentToken = data.token;
+          currentUser = data.user;
+          localStorage.setItem('jwt_token', currentToken);
+          msg.textContent = 'Успішно зареєстровано!';
+          renderAuth(true);
+          loadTasks();
+        } else {
+          msg.innerHTML = `<span style="color:red;">${data.error}</span>`;
+        }
+      } catch (err) {
+        msg.innerHTML = `<span style="color:red;">${err.message}</span>`;
+      }
+    });
+
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const msg = document.getElementById('authMessage');
+      msg.textContent = 'Вхід...';
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: document.getElementById('loginEmail').value,
+            password: document.getElementById('loginPassword').value,
+          })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          currentToken = data.token;
+          currentUser = data.user;
+          localStorage.setItem('jwt_token', currentToken);
+          msg.textContent = 'Вхід успішний!';
+          renderAuth(true);
+          loadTasks();
+        } else {
+          msg.innerHTML = `<span style="color:red;">${data.error}</span>`;
+        }
+      } catch (err) {
+        msg.innerHTML = `<span style="color:red;">${err.message}</span>`;
+      }
+    });
+
+    // 3. Перемикання полів форми задач
+    const radios = document.getElementsByName('taskType');
+    radios.forEach(radio => {
+      radio.addEventListener('change', () => {
+        const val = document.querySelector('input[name="taskType"]:checked').value;
+        document.getElementById('mediaOptions').style.display = (val === 'MEDIA_CONVERT') ? 'block' : 'none';
+        document.getElementById('archiveOptions').style.display = (val === 'ARCHIVE_COMPRESS') ? 'block' : 'none';
+        document.getElementById('benchmarkOptions').style.display = (val === 'SYNTHETIC_BENCHMARK') ? 'block' : 'none';
+        document.getElementById('fileUploadContainer').style.display = (val === 'SYNTHETIC_BENCHMARK') ? 'none' : 'block';
+      });
+    });
+
+    // Клієнтська валідація розміру файлу
+    const fileInput = document.getElementById('taskFileInput');
+    const fileErr = document.getElementById('fileValidationError');
+    const submitBtn = document.getElementById('btnSubmitTask');
+
+    fileInput.addEventListener('change', () => {
+      fileErr.textContent = '';
+      submitBtn.disabled = false;
+      if (fileInput.files && fileInput.files[0]) {
+        const f = fileInput.files[0];
+        if (f.size > MAX_FILE_SIZE_BYTES) {
+          const mb = (f.size / 1024 / 1024).toFixed(1);
+          fileErr.textContent = `Увага (клієнтська валідація): файл розміром ${mb} МБ перевищує ліміт у 50 МБ! Будь ласка, оберіть менший файл.`;
+          submitBtn.disabled = true;
+        }
+      }
+    });
+
+    // Генерація тестового файлу на сервері для демо
+    document.getElementById('btnGenDemoFile').addEventListener('click', async () => {
+      if (!currentToken) {
+        alert('Спочатку увійдіть у систему');
+        return;
+      }
+      const statusSpan = document.getElementById('demoFileStatus');
+      statusSpan.textContent = 'Генерація тестового файлу 10 МБ на сервері...';
+      try {
+        const res = await fetch('/api/tasks/generate-demo', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${currentToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ sizeMb: 10 })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          demoFile = data;
+          statusSpan.innerHTML = ` <strong>Готово!</strong> Згенеровано: <code>${data.fileName}</code> (${(data.fileSize / 1024 / 1024).toFixed(1)} МБ). Тепер можна запустити задачу без завантаження.`;
+        } else {
+          statusSpan.textContent = `Помилка: ${data.error}`;
+        }
+      } catch (err) {
+        statusSpan.textContent = `Помилка: ${err.message}`;
+      }
+    });
+
+    // Створення задачі
+    document.getElementById('createTaskForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!currentToken) {
+        alert('Будь ласка, увійдіть або зареєструйтесь для створення задачі.');
+        return;
+      }
+
+      const msg = document.getElementById('createTaskMessage');
+      msg.textContent = 'Відправка задачі на сервер...';
+
+      const taskType = document.querySelector('input[name="taskType"]:checked').value;
+      const formData = new FormData();
+      formData.append('type', taskType);
+
+      let options = {};
+      if (taskType === 'MEDIA_CONVERT') {
+        options = {
+          targetFormat: document.getElementById('imgFormat').value,
+          width: document.getElementById('imgWidth').value || undefined,
+          quality: document.getElementById('imgQuality').value || 80,
+        };
+      } else if (taskType === 'ARCHIVE_COMPRESS') {
+        options = {
+          format: document.getElementById('archiveFormat').value,
+          compressionLevel: document.getElementById('compressionLevel').value || 9,
+        };
+      } else if (taskType === 'SYNTHETIC_BENCHMARK') {
+        options = {
+          complexity: document.getElementById('benchComplexity').value || 5,
+        };
+      }
+      formData.append('options', JSON.stringify(options));
+
+      if (taskType !== 'SYNTHETIC_BENCHMARK') {
+        if (fileInput.files && fileInput.files[0]) {
+          formData.append('file', fileInput.files[0]);
+        } else if (demoFile) {
+          formData.append('demoFileName', demoFile.fileName);
+          formData.append('demoFileSize', demoFile.fileSize);
+        } else {
+          msg.innerHTML = '<span style="color:red;">Будь ласка, оберіть файл або згенеруйте тестовий файл</span>';
+          return;
+        }
+      }
+
+      try {
+        const res = await fetch('/api/tasks', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${currentToken}` },
+          body: formData,
+        });
+        const data = await res.json();
+        if (res.ok) {
+          msg.innerHTML = `<span style="color: green;">Задачу успішно створено! (ID: ${data.task.id})</span>`;
+          // Очистити форму
+          fileInput.value = '';
+          demoFile = null;
+          document.getElementById('demoFileStatus').textContent = '';
+          // Запустити живий моніторинг
+          startLiveMonitoring(data.task.id);
+          loadTasks();
+        } else {
+          msg.innerHTML = `<span style="color: red;">Помилка: ${data.error}</span>`;
+        }
+      } catch (err) {
+        msg.innerHTML = `<span style="color: red;">Помилка з'єднання: ${err.message}</span>`;
+      }
+    });
+
+    // 4. Живий трекер через SSE
+    function startLiveMonitoring(taskId) {
+      if (activeEventSource) {
+        activeEventSource.close();
+      }
+      currentMonitoredTaskId = taskId;
+
+      document.getElementById('liveTrackerEmpty').style.display = 'none';
+      document.getElementById('liveTrackerActive').style.display = 'block';
+      document.getElementById('trackTaskId').textContent = taskId;
+      document.getElementById('trackTaskStatus').textContent = 'Підключення до потоку подій...';
+      document.getElementById('trackProgressBar').value = 0;
+      document.getElementById('trackProgressText').textContent = '0%';
+      document.getElementById('trackDownloadContainer').style.display = 'none';
+      document.getElementById('trackErrorContainer').style.display = 'none';
+      document.getElementById('trackCancelContainer').style.display = 'block';
+
+      const sseUrl = `/api/tasks/${taskId}/events?token=${encodeURIComponent(currentToken)}`;
+      activeEventSource = new EventSource(sseUrl);
+
+      activeEventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          updateTrackerUI(data);
+        } catch {}
+      };
+
+      activeEventSource.onerror = () => {
+        // SSE disconnected or closed by server
+        loadTasks();
+      };
+    }
+
+    function updateTrackerUI(data) {
+      document.getElementById('trackTaskStatus').textContent = data.status;
+      document.getElementById('trackTaskWorker').textContent = data.workerId || 'Очікує призначення...';
+      document.getElementById('trackTaskStage').textContent = data.stage || '-';
+      document.getElementById('trackProgressBar').value = data.progress || 0;
+      document.getElementById('trackProgressText').textContent = `${data.progress || 0}%`;
+
+      if (data.status === 'COMPLETED') {
+        document.getElementById('trackCancelContainer').style.display = 'none';
+        document.getElementById('trackDownloadContainer').style.display = 'block';
+        const dlLink = document.getElementById('trackDownloadLink');
+        dlLink.href = `/api/tasks/${data.taskId}/download?token=${encodeURIComponent(currentToken)}`;
+        dlLink.textContent = `Завантажити результат: ${data.outputFileName || 'файл'} (${data.outputFileSize ? Math.round(data.outputFileSize / 1024) + ' KB' : ''})`;
+        if (activeEventSource) activeEventSource.close();
+        loadTasks();
+      } else if (data.status === 'FAILED') {
+        document.getElementById('trackCancelContainer').style.display = 'none';
+        document.getElementById('trackErrorContainer').style.display = 'block';
+        document.getElementById('trackErrorMessage').textContent = data.errorMessage || 'Невідома помилка';
+        if (activeEventSource) activeEventSource.close();
+        loadTasks();
+      } else if (data.status === 'CANCELLED') {
+        document.getElementById('trackCancelContainer').style.display = 'none';
+        document.getElementById('trackTaskStatus').textContent = 'СКАСОВАНО';
+        if (activeEventSource) activeEventSource.close();
+        loadTasks();
+      }
+    }
+
+    // Скасування поточної задачі
+    document.getElementById('btnCancelActiveTask').addEventListener('click', async () => {
+      if (!currentMonitoredTaskId) return;
+      if (!confirm('Ви дійсно бажаєте перервати виконання цієї задачі?')) return;
+      try {
+        const res = await fetch(`/api/tasks/${currentMonitoredTaskId}/cancel`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert('Задачу скасовано.');
+          loadTasks();
+        } else {
+          alert(`Помилка скасування: ${data.error}`);
+        }
+      } catch (err) {
+        alert(`Помилка: ${err.message}`);
+      }
+    });
+
+    // 5. Завантаження історії задач
+    async function loadTasks() {
+      if (!currentToken) return;
+      try {
+        const res = await fetch('/api/tasks', {
+          headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        renderTasksTable(data.tasks);
+      } catch (e) {
+        console.error('Помилка завантаження задач:', e);
+      }
+    }
+
+    function renderTasksTable(tasks) {
+      const tbody = document.getElementById('tasksTableBody');
+      if (!tasks || tasks.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="10" align="center">Задач поки немає. Створіть першу задачу вище.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = tasks.map(t => {
+        const dateStr = new Date(t.createdAt).toLocaleTimeString();
+        const inputSizeKb = t.inputFileSize ? `${Math.round(t.inputFileSize / 1024)} KB` : '-';
+        const outputSizeKb = t.outputFileSize ? `${Math.round(t.outputFileSize / 1024)} KB` : '-';
+        const serverWorker = `${t.handledByServer || '-'} / ${t.workerId || '-'}`;
+
+        let actions = [];
+        if (['PENDING', 'PROCESSING'].includes(t.status)) {
+          actions.push(`<button onclick="cancelTask('${t.id}')">Скасувати</button>`);
+          actions.push(`<button onclick="startLiveMonitoring('${t.id}')">Стежити</button>`);
+        } else if (t.status === 'COMPLETED' && t.outputFileName) {
+          actions.push(`<a href="/api/tasks/${t.id}/download?token=${encodeURIComponent(currentToken)}" target="_blank"><button type="button">Завантажити</button></a>`);
+        } else if (t.status === 'FAILED') {
+          actions.push(`<span title="${t.errorMessage || ''}" style="color:red; cursor:help;">Помилка</span>`);
+        }
+
+        return `
+          <tr>
+            <td><code>${t.id.slice(0, 8)}...</code></td>
+            <td>${t.type}</td>
+            <td><strong>${t.status}</strong></td>
+            <td>${t.progress}% (${t.stage || ''})</td>
+            <td>${t.inputFileName || '-'} (${inputSizeKb})</td>
+            <td>${t.outputFileName || '-'} (${outputSizeKb})</td>
+            <td>${t.executionTimeMs ? t.executionTimeMs + ' мс' : '-'}</td>
+            <td><small>${serverWorker}</small></td>
+            <td>${dateStr}</td>
+            <td>${actions.join(' ')}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    async function cancelTask(id) {
+      if (!confirm('Скасувати задачу?')) return;
+      try {
+        const res = await fetch(`/api/tasks/${id}/cancel`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+        const data = await res.json();
+        if (res.ok) {
+          loadTasks();
+        } else {
+          alert(data.error);
+        }
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    document.getElementById('btnRefreshTasks').addEventListener('click', loadTasks);
+
+    // Ініціалізація сторінки
+    checkCurrentUser();
+    // Первинний пінг балансувальника для показу статусу
+    document.getElementById('btnPingLB').click();
+  </script>
+</body>
+</html>

@@ -44,6 +44,7 @@ services:
       dockerfile: Dockerfile
     container_name: web_api1
     restart: unless-stopped
+    command: ["npm", "run", "start:migrate"]
     environment:
       NODE_ENV: production
       PORT: 3000

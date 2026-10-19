@@ -34,6 +34,7 @@ RUN npx prisma generate
 
 # Copy built code from builder
 COPY --from=builder /app/dist ./dist
+COPY public ./public
 
 # Create storage directory for uploaded & processed files
 RUN mkdir -p /app/storage/uploads /app/storage/outputs && chmod -R 777 /app/storage

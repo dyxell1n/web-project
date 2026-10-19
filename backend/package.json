@@ -1,11 +1,13 @@
 {
   "name": "media-archiver-backend",
   "version": "1.0.0",
+  "type": "module",
   "description": "Backend API and Compute Workers for Media Converter & Archiver",
   "main": "dist/index.js",
   "scripts": {
     "build": "prisma generate && tsc",
     "start": "node dist/index.js",
+    "start:migrate": "npx prisma db push --skip-generate && node dist/index.js",
     "start:worker": "node dist/worker.js",
     "dev": "prisma generate && tsx watch src/index.ts",
     "dev:worker": "tsx watch src/worker.ts",
@@ -24,6 +26,7 @@
     "ioredis": "^5.6.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
+    "prisma": "^6.4.0",
     "sharp": "^0.33.5",
     "tar": "^7.4.3",
     "uuid": "^11.1.0",
@@ -40,7 +43,6 @@
     "@types/tar": "^6.1.13",
     "@types/uuid": "^10.0.0",
     "@types/ws": "^8.5.14",
-    "prisma": "^6.4.0",
     "tsx": "^4.19.3",
     "typescript": "^5.7.3"
   }
