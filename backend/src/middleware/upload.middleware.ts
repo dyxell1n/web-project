@@ -29,15 +29,15 @@ export function handleUploadErrors(err: any, _req: Request, res: Response, next:
   if (err instanceof multer.MulterError) {
     if (err.code === 'LIMIT_FILE_SIZE') {
       res.status(413).json({
-        error: `Розмір файлу перевищує дозволений ліміт (${config.maxFileSizeMb} МБ). Задача відхилена.`,
+        error: `File size exceeds the ${config.maxFileSizeMb} MB limit. Task rejected.`,
       });
       return;
     }
-    res.status(400).json({ error: `Помилка завантаження файлу: ${err.message}` });
+    res.status(400).json({ error: `File upload failed: ${err.message}` });
     return;
   }
   if (err) {
-    res.status(400).json({ error: err.message || 'Помилка обробки файлу' });
+    res.status(400).json({ error: err.message || 'File processing failed' });
     return;
   }
   next();

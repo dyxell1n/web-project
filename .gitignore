@@ -2,17 +2,23 @@
 node_modules/
 dist/
 build/
+.vite/
+coverage/
+*.tsbuildinfo
 
 # Environment variables
 .env
-.env.local
-.env.production
+.env.*
+!.env.example
 
 # Temporary & Uploaded Storage
 storage/
 uploads/
 temp/
 *.tmp
+
+# Generated frontend bundles (Vite output)
+/backend/public/assets/
 
 # Persistent Docker Data
 postgres_data/

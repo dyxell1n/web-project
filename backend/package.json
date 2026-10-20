@@ -5,7 +5,9 @@
   "description": "Backend API and Compute Workers for Media Converter & Archiver",
   "main": "dist/index.js",
   "scripts": {
-    "build": "prisma generate && tsc",
+    "build": "prisma generate && tsc && npm run build:frontend",
+    "build:frontend": "vite build",
+    "dev:frontend": "vite --host 0.0.0.0",
     "start": "node dist/index.js",
     "start:migrate": "npx prisma db push --skip-generate && node dist/index.js",
     "start:worker": "node dist/worker.js",
@@ -44,6 +46,10 @@
     "@types/uuid": "^10.0.0",
     "@types/ws": "^8.5.14",
     "tsx": "^4.19.3",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "@vitejs/plugin-react": "^4.4.1",
+    "vite": "^6.2.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   }
 }

@@ -24,7 +24,7 @@ export async function processBenchmark(
   // Size of computation batch per step
   const matrixSize = 80 + complexity * 25; // Matrix of size up to 330x330 (millions of floating point ops)
 
-  await onProgress(5, `Ініціалізація математичного стрес-тесту (рівень складності: ${complexity}/10, матриця: ${matrixSize}x${matrixSize})`);
+  await onProgress(5, `Initializing compute stress test (complexity: ${complexity}/10, matrix: ${matrixSize}x${matrixSize})`);
 
   const startTime = Date.now();
   let operationsCount = 0;
@@ -38,7 +38,7 @@ export async function processBenchmark(
     const currentPercent = Math.round((step / totalSteps) * 90);
     await onProgress(
       currentPercent,
-      `Етап ${step}/${totalSteps}: Обчислення матричних перетворень та ітерацій розв'язання`
+      `Step ${step}/${totalSteps}: Calculating matrix transforms and solution iterations`
     );
 
     // Perform intensive CPU calculations (matrix multiply and relaxation)
@@ -67,7 +67,7 @@ export async function processBenchmark(
   }
 
   const durationMs = Date.now() - startTime;
-  await onProgress(95, 'Формування звіту обчислень та перевірка результатів');
+  await onProgress(95, 'Preparing compute report and validating results');
 
   const report = {
     taskId,
@@ -82,7 +82,7 @@ export async function processBenchmark(
   };
 
   fs.writeFileSync(outputPath, JSON.stringify(report, null, 2), 'utf-8');
-  await onProgress(100, `Обчислення успішно завершено за ${durationMs} мс`);
+  await onProgress(100, `Computation completed successfully in ${durationMs} ms`);
 
   const stats = fs.statSync(outputPath);
   return { outputSize: stats.size };

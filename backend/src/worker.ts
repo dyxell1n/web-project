@@ -62,7 +62,7 @@ export const worker = new Worker<JobData>(
         where: { id: taskId },
         data: {
           status: 'CANCELLED',
-          stage: 'Скасовано користувачем',
+          stage: 'Cancelled by user',
           workerId: config.workerId,
         },
       });
@@ -70,7 +70,7 @@ export const worker = new Worker<JobData>(
         taskId,
         status: 'CANCELLED',
         progress: 0,
-        stage: 'Скасовано користувачем',
+        stage: 'Cancelled by user',
         workerId: config.workerId,
       });
       return { cancelled: true };
@@ -81,7 +81,7 @@ export const worker = new Worker<JobData>(
       where: { id: taskId },
       data: {
         status: 'PROCESSING',
-        stage: 'Призначено воркеру, запуск обробки...',
+        stage: 'Assigned to a worker, starting…',
         workerId: config.workerId,
         startedAt: new Date(),
         progress: 5,
@@ -92,7 +92,7 @@ export const worker = new Worker<JobData>(
       taskId,
       status: 'PROCESSING',
       progress: 5,
-      stage: 'Призначено воркеру, запуск обробки...',
+      stage: 'Assigned to a worker, starting…',
       workerId: config.workerId,
     });
 
@@ -153,7 +153,7 @@ export const worker = new Worker<JobData>(
         data: {
           status: 'COMPLETED',
           progress: 100,
-          stage: 'Успішно виконано',
+          stage: 'Completed successfully',
           outputFileName,
           outputFileSize: resultOutputSize,
           outputFormat: path.extname(outputFileName).replace('.', ''),
@@ -166,7 +166,7 @@ export const worker = new Worker<JobData>(
         taskId,
         status: 'COMPLETED',
         progress: 100,
-        stage: 'Успішно виконано',
+        stage: 'Completed successfully',
         workerId: config.workerId,
         outputFileName,
         outputFileSize: resultOutputSize,
@@ -193,7 +193,7 @@ export const worker = new Worker<JobData>(
           where: { id: taskId },
           data: {
             status: 'CANCELLED',
-            stage: 'Перервано користувачем',
+            stage: 'Interrupted by user',
             executionTimeMs,
             completedAt: new Date(),
           },
@@ -202,15 +202,15 @@ export const worker = new Worker<JobData>(
           taskId,
           status: 'CANCELLED',
           progress: 0,
-          stage: 'Перервано користувачем',
+          stage: 'Interrupted by user',
           workerId: config.workerId,
         });
         return { cancelled: true, taskId };
       }
 
       const errorMessage = isTimeout
-        ? `Перевищено максимальний час виконання (${config.taskTimeoutSeconds} с). Задачу примусово зупинено.`
-        : err.message || 'Невідома помилка під час обробки';
+        ? `Maximum execution time exceeded (${config.taskTimeoutSeconds} s). The task was stopped.`
+        : err.message || 'Unknown processing error';
 
       console.error(`[${config.workerId}] Помилка виконання задачі ${taskId}:`, errorMessage);
 
@@ -218,7 +218,7 @@ export const worker = new Worker<JobData>(
         where: { id: taskId },
         data: {
           status: 'FAILED',
-          stage: 'Помилка виконання',
+          stage: 'Execution failed',
           errorMessage,
           executionTimeMs,
           completedAt: new Date(),
@@ -229,7 +229,7 @@ export const worker = new Worker<JobData>(
         taskId,
         status: 'FAILED',
         progress: 0,
-        stage: 'Помилка виконання',
+        stage: 'Execution failed',
         workerId: config.workerId,
         errorMessage,
       });

@@ -35,7 +35,7 @@ router.post('/generate-demo', requireAuth, async (req: AuthenticatedRequest, res
     });
 
     res.json({
-      message: `Створено тестовий файл розміром ${sizeMb} МБ`,
+      message: `Sample file created (${sizeMb} MB)`,
       fileName,
       fileSize: written,
     });
@@ -70,7 +70,7 @@ router.post(
           } catch {}
         }
         res.status(429).json({
-          error: `Перевищено ліміт активних задач: у вас вже є ${activeTasksCount} активних задач (максимум: ${config.maxConcurrentTasksPerUser}). Зачекайте завершення попередніх або скасуйте їх.`,
+          error: `Active task limit reached: you have ${activeTasksCount} active tasks (maximum: ${config.maxConcurrentTasksPerUser}). Wait for a task to finish or cancel one.`,
         });
         return;
       }
@@ -95,7 +95,7 @@ router.post(
         inputFileSize = 0;
         inputFormat = 'synthetic';
       } else {
-        res.status(400).json({ error: 'Необхідно надати файл для обробки або вибрати синтетичний тест' });
+        res.status(400).json({ error: 'Upload a file or choose the synthetic benchmark task.' });
         return;
       }
 
@@ -107,7 +107,7 @@ router.post(
           } catch {}
         }
         res.status(400).json({
-          error: `Розмір файлу (${Math.round(inputFileSize / 1024 / 1024)} МБ) перевищує встановлений ліміт у ${config.maxFileSizeMb} МБ`,
+          error: `File size (${Math.round(inputFileSize / 1024 / 1024)} MB) exceeds the ${config.maxFileSizeMb} MB limit.`,
         });
         return;
       }
@@ -119,7 +119,7 @@ router.post(
           type,
           status: 'PENDING',
           progress: 0,
-          stage: 'Поставлено в чергу обробки',
+          stage: 'Queued for processing',
           inputFileName,
           inputFileSize,
           inputFormat,
@@ -146,7 +146,7 @@ router.post(
       );
 
       res.status(201).json({
-        message: 'Задачу успішно створено та додано до черги обробки',
+        message: 'Task created and added to the processing queue',
         task,
       });
     } catch (error) {
@@ -178,12 +178,12 @@ router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
     });
 
     if (!task) {
-      res.status(404).json({ error: 'Задачу не знайдено' });
+      res.status(404).json({ error: 'Task not found' });
       return;
     }
 
     if (task.userId !== req.user!.id && req.user!.role !== 'ADMIN') {
-      res.status(403).json({ error: 'Немає доступу до цієї задачі' });
+      res.status(403).json({ error: 'You do not have access to this task' });
       return;
     }
 
@@ -202,17 +202,17 @@ router.post('/:id/cancel', requireAuth, async (req: AuthenticatedRequest, res: R
     });
 
     if (!task) {
-      res.status(404).json({ error: 'Задачу не знайдено' });
+      res.status(404).json({ error: 'Task not found' });
       return;
     }
 
     if (task.userId !== req.user!.id && req.user!.role !== 'ADMIN') {
-      res.status(403).json({ error: 'Немає прав на скасування цієї задачі' });
+      res.status(403).json({ error: 'You are not allowed to cancel this task' });
       return;
     }
 
     if (['COMPLETED', 'FAILED', 'CANCELLED'].includes(task.status)) {
-      res.status(400).json({ error: `Неможливо скасувати задачу зі статусом ${task.status}` });
+      res.status(400).json({ error: `Cannot cancel a task with status ${task.status}` });
       return;
     }
 
@@ -222,13 +222,13 @@ router.post('/:id/cancel', requireAuth, async (req: AuthenticatedRequest, res: R
       where: { id: task.id },
       data: {
         status: 'CANCELLED',
-        stage: 'Скасовано користувачем',
+        stage: 'Cancelled by user',
         completedAt: new Date(),
       },
     });
 
     res.json({
-      message: 'Задачу успішно скасовано',
+      message: 'Task cancelled successfully',
       task: updatedTask,
     });
   } catch (error) {
@@ -245,23 +245,23 @@ router.get('/:id/download', requireAuth, async (req: AuthenticatedRequest, res: 
     });
 
     if (!task) {
-      res.status(404).json({ error: 'Задачу не знайдено' });
+      res.status(404).json({ error: 'Task not found' });
       return;
     }
 
     if (task.userId !== req.user!.id && req.user!.role !== 'ADMIN') {
-      res.status(403).json({ error: 'Немає доступу до файлу' });
+      res.status(403).json({ error: 'You do not have access to this file' });
       return;
     }
 
     if (task.status !== 'COMPLETED' || !task.outputFileName) {
-      res.status(400).json({ error: 'Файл ще не готовий або задача завершилась з помилкою' });
+      res.status(400).json({ error: 'The file is not ready yet or the task failed' });
       return;
     }
 
     const filePath = getOutputFilePath(task.outputFileName);
     if (!fs.existsSync(filePath)) {
-      res.status(404).json({ error: 'Файл результату не знайдено на сервері' });
+      res.status(404).json({ error: 'Result file not found on the server' });
       return;
     }
 

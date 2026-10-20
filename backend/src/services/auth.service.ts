@@ -15,10 +15,10 @@ export class AuthService {
     const normalizedEmail = email.trim().toLowerCase();
     
     if (!normalizedEmail || !normalizedEmail.includes('@')) {
-      throw new Error('Некоректний формат email');
+      throw new Error('Invalid email format');
     }
     if (!password || password.length < 6) {
-      throw new Error('Пароль повинен містити щонайменше 6 символів');
+      throw new Error('Password must be at least 6 characters long');
     }
 
     const existingUser = await prisma.user.findUnique({
@@ -26,7 +26,7 @@ export class AuthService {
     });
 
     if (existingUser) {
-      throw new Error('Користувач з таким email вже існує');
+      throw new Error('An account with this email already exists');
     }
 
     const salt = await bcrypt.genSalt(10);
@@ -65,12 +65,12 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new Error('Невірний email або пароль');
+      throw new Error('Incorrect email or password');
     }
 
     const isValid = await bcrypt.compare(password, user.passwordHash);
     if (!isValid) {
-      throw new Error('Невірний email або пароль');
+      throw new Error('Incorrect email or password');
     }
 
     const token = this.generateToken({

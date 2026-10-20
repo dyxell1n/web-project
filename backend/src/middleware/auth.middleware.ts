@@ -17,7 +17,7 @@ export function requireAuth(req: AuthenticatedRequest, res: Response, next: Next
     }
 
     if (!token) {
-      res.status(401).json({ error: 'Потрібна авторизація (токен відсутній)' });
+      res.status(401).json({ error: 'Authentication required (token missing)' });
       return;
     }
 
@@ -25,7 +25,7 @@ export function requireAuth(req: AuthenticatedRequest, res: Response, next: Next
     req.user = payload;
     next();
   } catch (error) {
-    res.status(401).json({ error: 'Недійсний або прострочений токен' });
+    res.status(401).json({ error: 'Invalid or expired token' });
   }
 }
 

@@ -23,12 +23,12 @@ export async function processImage(
     throw new Error('TASK_CANCELLED');
   }
 
-  await onProgress(10, 'Зчитування та валідація метаданих зображення');
+  await onProgress(10, 'Reading and validating image metadata');
   const metadata = await sharp(inputPath).metadata();
 
   if (await isTaskCancelled(taskId)) throw new Error('TASK_CANCELLED');
 
-  await onProgress(30, 'Підготовка параметрів масштабування та фільтрації');
+  await onProgress(30, 'Preparing resize and filter settings');
   let pipeline = sharp(inputPath);
 
   if (options.width || options.height) {
@@ -45,7 +45,7 @@ export async function processImage(
   const format = options.targetFormat || 'webp';
   const quality = options.quality ? Math.min(100, Math.max(1, Number(options.quality))) : 80;
 
-  await onProgress(60, `Конвертація у формат ${format.toUpperCase()} (якість: ${quality}%)`);
+  await onProgress(60, `Converting to ${format.toUpperCase()} (${quality}% quality)`);
 
   switch (format) {
     case 'jpeg':
@@ -65,7 +65,7 @@ export async function processImage(
 
   if (await isTaskCancelled(taskId)) throw new Error('TASK_CANCELLED');
 
-  await onProgress(85, 'Запис та фінальна оптимізація файлу на диск');
+  await onProgress(85, 'Writing and optimizing the output file');
   await pipeline.toFile(outputPath);
 
   if (await isTaskCancelled(taskId)) {
@@ -75,7 +75,7 @@ export async function processImage(
   }
 
   const stats = fs.statSync(outputPath);
-  await onProgress(100, 'Конвертацію зображення успішно завершено');
+  await onProgress(100, 'Image conversion completed successfully');
 
   return { outputSize: stats.size };
 }

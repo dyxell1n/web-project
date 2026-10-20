@@ -12,6 +12,8 @@ RUN npm install
 
 COPY tsconfig.json ./
 COPY src ./src
+COPY index.html vite.config.js ./
+COPY public/img ./public/img
 
 # Generate Prisma client and build typescript
 RUN npx prisma generate
@@ -34,7 +36,7 @@ RUN npx prisma generate
 
 # Copy built code from builder
 COPY --from=builder /app/dist ./dist
-COPY public ./public
+COPY --from=builder /app/public ./public
 
 # Create storage directory for uploaded & processed files
 RUN mkdir -p /app/storage/uploads /app/storage/outputs && chmod -R 777 /app/storage

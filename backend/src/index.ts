@@ -83,7 +83,7 @@ app.get('*', (req: Request, res: Response) => {
   if (req.accepts('html')) {
     res.sendFile(path.join(publicDir, 'index.html'));
   } else {
-    res.status(404).json({ error: 'Маршрут не знайдено' });
+    res.status(404).json({ error: 'Route not found' });
   }
 });
 

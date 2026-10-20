@@ -23,10 +23,10 @@ export async function processArchive(
   const format = options.format || 'zip';
   const compressionLevel = options.compressionLevel ? Number(options.compressionLevel) : 9;
 
-  await onProgress(15, `Ініціалізація компресора (${format.toUpperCase()}, рівень ${compressionLevel})`);
+  await onProgress(15, `Initializing compressor (${format.toUpperCase()}, level ${compressionLevel})`);
 
   if (!fs.existsSync(inputPath)) {
-    throw new Error('Вхідний файл не знайдено');
+    throw new Error('Input file not found');
   }
 
   const inputStats = fs.statSync(inputPath);
@@ -34,13 +34,13 @@ export async function processArchive(
 
   if (await isTaskCancelled(taskId)) throw new Error('TASK_CANCELLED');
 
-  await onProgress(35, 'Зчитування потоку даних та початок компресії');
+  await onProgress(35, 'Reading data stream and starting compression');
 
   if (format === 'tar.gz') {
     // Compress via tar
     if (await isTaskCancelled(taskId)) throw new Error('TASK_CANCELLED');
     
-    await onProgress(60, 'Виконання важкого GZIP-стиснення блоків');
+    await onProgress(60, 'Compressing data blocks with GZIP');
     await tar.create(
       {
         gzip: { level: compressionLevel },
@@ -55,9 +55,9 @@ export async function processArchive(
       throw new Error('TASK_CANCELLED');
     }
 
-    await onProgress(90, 'Фіналізація архіву та перевірка цілісності');
+    await onProgress(90, 'Finalizing archive and checking integrity');
     const outStats = fs.statSync(outputPath);
-    await onProgress(100, 'Архівування успішно завершено');
+    await onProgress(100, 'Archiving completed successfully');
     return { outputSize: outStats.size };
   } else {
     // Default: ZIP archive with archiver
@@ -77,7 +77,7 @@ export async function processArchive(
             reject(new Error('TASK_CANCELLED'));
             return;
           }
-          await onProgress(100, 'ZIP-архів успішно створено');
+          await onProgress(100, 'ZIP archive created successfully');
           const outStats = fs.statSync(outputPath);
           resolve({ outputSize: outStats.size });
         } catch (err) {
@@ -94,7 +94,7 @@ export async function processArchive(
         if (totalInputBytes > 0) {
           const ratio = Math.min(0.95, data.fs.processedBytes / totalInputBytes);
           const percent = Math.floor(35 + ratio * 55);
-          await onProgress(percent, `Стиснення даних: ${Math.round(data.fs.processedBytes / 1024)} KB оброблено`);
+          await onProgress(percent, `Compressing data: ${Math.round(data.fs.processedBytes / 1024)} KB processed`);
         }
       });
 

@@ -9,13 +9,13 @@ router.post('/register', async (req: AuthenticatedRequest, res: Response): Promi
   try {
     const { email, password, name } = req.body;
     if (!email || !password) {
-      res.status(400).json({ error: 'Email та пароль є обов’язковими' });
+      res.status(400).json({ error: 'Email and password are required' });
       return;
     }
 
     const result = await AuthService.register(email, password, name);
     res.status(201).json({
-      message: 'Користувача успішно зареєстровано',
+      message: 'Account created successfully',
       user: result.user,
       token: result.token,
     });
@@ -29,13 +29,13 @@ router.post('/login', async (req: AuthenticatedRequest, res: Response): Promise<
   try {
     const { email, password } = req.body;
     if (!email || !password) {
-      res.status(400).json({ error: 'Email та пароль є обов’язковими' });
+      res.status(400).json({ error: 'Email and password are required' });
       return;
     }
 
     const result = await AuthService.login(email, password);
     res.json({
-      message: 'Вхід успішний',
+      message: 'Login successful',
       user: result.user,
       token: result.token,
     });
