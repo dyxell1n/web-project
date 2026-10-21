@@ -17,7 +17,8 @@ const legacyStages = {
   'Підключення до потоку подій': 'Connecting to the event stream',
   'Помилка виконання': 'Execution failed',
 };
-const statusLabels = { PENDING: 'Queued', PROCESSING: 'In progress', COMPLETED: 'Completed', FAILED: 'Failed', CANCELLED: 'Cancelled', 'CONNECTING…': 'Connecting…' };
+const statusLabels = { PENDING: 'Queued', QUEUED: 'Queued', PROCESSING: 'In progress', COMPLETED: 'Completed', FAILED: 'Failed', CANCELLED: 'Cancelled', 'CONNECTING…': 'Connecting…' };
+const taskTypeLabels = { MEDIA_CONVERT: 'Image conversion', ARCHIVE_COMPRESS: 'Compression & archiving', SYNTHETIC_BENCHMARK: 'CPU stress test' };
 
 function Options({ type, values, setValues, onGenerate, demoStatus, user }) {
   const change = (key) => (e) => setValues((old) => ({ ...old, [key]: e.target.value }));
@@ -42,10 +43,33 @@ function Tracker({ tracker, onCancel, token }) {
   if (!tracker) return <div className="tracker-empty"><span>↗</span><div><b>LIVE MONITOR</b><p>Create a task to see its status and progress here.</p></div></div>;
   const done = ['COMPLETED', 'FAILED', 'CANCELLED'].includes(tracker.status);
   const download = `/api/tasks/${tracker.taskId}/download?token=${encodeURIComponent(token)}`;
-  return <div className="tracker-live"><div className="tracker-head"><span>TASK · {tracker.taskId?.slice(0, 8)}</span><b className={done ? 'done' : ''}>{statusLabels[tracker.status] || tracker.status}</b></div><p>{legacyStages[tracker.stage] || tracker.stage || 'Waiting for worker assignment'} <span>{tracker.workerId || 'Queued'}</span></p><div className="progress"><i style={{ width: `${tracker.progress || 0}%` }} /></div><div className="tracker-foot"><span>PROGRESS {tracker.progress || 0}%</span>{!done ? <button className="inline-link" onClick={onCancel}>Cancel ×</button> : null}</div>{tracker.status === 'COMPLETED' && <a className="download-link" href={download}>Download result ↗</a>}{tracker.status === 'FAILED' && <p className="error-text">{legacyStages[tracker.errorMessage] || tracker.errorMessage || 'Execution failed'}</p>}</div>;
+  return <div className="tracker-live"><div className="tracker-head"><span>TASK · {tracker.taskId?.slice(0, 8)}</span><b className={done ? 'done' : ''}>{statusLabels[tracker.status] || tracker.status}</b></div><p>{legacyStages[tracker.stage] || tracker.stage || 'Waiting for worker assignment'} <span>{tracker.workerId || 'Queued'}</span></p><div className="progress"><i style={{ width: `${tracker.progress || 0}%` }} /></div><div className="tracker-foot"><span>PROGRESS {tracker.progress || 0}%</span><span>{tracker.estimatedWaitSeconds != null ? `${tracker.status === 'PROCESSING' ? 'Remaining' : 'Waiting'}: ~${tracker.estimatedWaitSeconds} s.` : ''}</span>{!done ? <button className="inline-link" onClick={() => onCancel(tracker.taskId)}>Cancel ×</button> : null}</div>{tracker.status === 'COMPLETED' && <a className="download-link" href={download}>Download result ↗</a>}{tracker.status === 'FAILED' && <p className="error-text">{legacyStages[tracker.errorMessage] || tracker.errorMessage || 'Execution failed'}</p>}</div>;
 }
 
-export default function Workspace({ type, onTypeChange, user, onAuth, onCreate, tracker, onCancel, token, onGenerate, demoStatus, busy, message }) {
+function QueuePanel({ tasks, onCancel }) {
+  const activeTasks = tasks
+    .filter((task) => ['PENDING', 'QUEUED', 'PROCESSING'].includes(task.status))
+    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+  if (activeTasks.length < 2) return null;
+
+  return <div className="queue-panel">
+    <div className="form-heading"><span>PROCESSING QUEUE</span><span>{activeTasks.length} ACTIVE TASKS</span></div>
+    <div className="queue-list" aria-live="polite">
+      {activeTasks.map((task, index) => {
+        const progress = Math.max(0, Math.min(100, Number(task.progress) || 0));
+        const queued = ['PENDING', 'QUEUED'].includes(task.status);
+        return <div className="queue-item" key={task.id}>
+          <div className="queue-item-head"><span>{String(index + 1).padStart(2, '0')} · TASK {task.id.slice(0, 8)}</span><b>{statusLabels[task.status] || task.status}</b></div>
+          <p>{taskTypeLabels[task.type] || task.type}<span>{task.estimatedWaitSeconds == null ? (queued ? 'Waiting in queue' : task.workerId || 'Worker assigned') : `${queued ? 'Waiting' : 'Remaining'}: ~${task.estimatedWaitSeconds} s.`}</span></p>
+          <div className="progress"><i style={{ width: `${progress}%` }} /></div>
+          <div className="tracker-foot"><span>{queued ? 'WAITING' : `PROGRESS ${progress}%`}</span><button className="inline-link" onClick={() => onCancel(task.id)}>Cancel ×</button></div>
+        </div>;
+      })}
+    </div>
+  </div>;
+}
+
+export default function Workspace({ type, onTypeChange, user, onAuth, onCreate, tracker, tasks = [], onCancel, token, onGenerate, demoStatus, busy, message }) {
   const [values, setValues] = useState({ imgFormat: 'webp', width: '', quality: '80', archiveFormat: 'zip', compression: '9', complexity: '5' });
   const [file, setFile] = useState(null);
   const [drag, setDrag] = useState(false);
@@ -67,9 +91,9 @@ export default function Workspace({ type, onTypeChange, user, onAuth, onCreate, 
           <div className="submit-row"><p>Your result will appear in the task history when processing is complete.</p><button type="submit" className="primary-button" disabled={busy}>{busy ? 'SUBMITTING…' : 'START TASK ↗'}</button></div>
           {message && <p className="form-message">{message}</p>}
         </form>
-        <div className="tracker-panel"><div className="form-heading"><span>CURRENT TASK</span><span>EXECUTION STATUS</span></div><Tracker tracker={tracker} onCancel={onCancel} token={token} /></div>
+        <div className="tracker-panel"><div className="form-heading"><span>CURRENT TASK</span><span>EXECUTION STATUS</span></div><Tracker tracker={tracker} onCancel={onCancel} token={token} /><QueuePanel tasks={tasks} onCancel={onCancel} /></div>
       </div>
-      <aside className="work-aside"><img src={`${ASSET}img2.jpg`} alt="A planet rising above the lunar horizon"/><div className="aside-caption"><span>EARTH · 001</span><span>FROM PROCESSING TO RESULTS</span></div></aside>
+      <aside className="work-aside"><img src={`${ASSET}img2.jpg`} alt="A planet rising above the lunar horizon"/></aside>
     </div>
   </section>;
 }

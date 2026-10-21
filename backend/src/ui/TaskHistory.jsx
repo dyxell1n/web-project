@@ -7,7 +7,8 @@ const typeLabels = {
 };
 
 const statusLabels = {
-  PENDING: 'Queued',
+  PENDING: 'In queue',
+  QUEUED: 'In queue',
   PROCESSING: 'In progress',
   COMPLETED: 'Completed',
   FAILED: 'Failed',
@@ -32,7 +33,7 @@ export default function TaskHistory({ tasks, onRefresh, onCancel, onMonitor, use
           <td className="task-id">{task.id.slice(0, 8)}…</td>
           <td>{typeLabels[task.type] || task.type}</td>
           <td><span className={`status-pill ${task.status.toLowerCase()}`}>{statusLabels[task.status] || task.status}</span></td>
-          <td><span className="table-progress">{task.progress}%</span><small>{legacyStages[task.stage] || task.stage || ''}</small></td>
+          <td><span className="table-progress">{task.progress}%</span><small>{task.estimatedWaitSeconds != null ? `${['PENDING', 'QUEUED'].includes(task.status) ? 'Waiting' : 'Remaining'}: ~${task.estimatedWaitSeconds} s.` : legacyStages[task.stage] || task.stage || ''}</small></td>
           <td className="file-cell" title={task.inputFileName}>{task.inputFileName || 'No file'}</td>
           <td>{task.executionTimeMs ? `${task.executionTimeMs} ms` : '—'}</td>
           <td>{new Date(task.createdAt).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>

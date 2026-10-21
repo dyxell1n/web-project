@@ -23,7 +23,8 @@ export interface JobData {
   options: any;
 }
 
-export const worker = new Worker<JobData>(
+const createWorker = (): Worker<JobData> => {
+  const workerInstance = new Worker<JobData>(
   TASK_QUEUE_NAME,
   async (job: Job<JobData>) => {
     const { taskId, type, inputFileName, options } = job.data;
@@ -241,12 +242,55 @@ export const worker = new Worker<JobData>(
     connection: redisConnection,
     concurrency: 1, // 1 heavy task per compute worker to accurately reflect load balancing
   }
-);
+  );
 
-worker.on('ready', () => {
-  console.log(`[${config.workerId}] Compute worker готовий до виконання задач.`);
-});
+  workerInstance.on('ready', () => {
+    console.log(`[${config.workerId}] Compute worker готовий до виконання задач.`);
+  });
 
-worker.on('failed', (job, err) => {
-  console.error(`[${config.workerId}] Job ${job?.id} failed:`, err.message);
-});
+  workerInstance.on('failed', (job, err) => {
+    console.error(`[${config.workerId}] Job ${job?.id} failed:`, err.message);
+  });
+  return workerInstance;
+};
+
+const workerSlot = Number.parseInt(process.env.WORKER_SLOT || '1', 10);
+const desiredWorkersKey = 'workers:desired-count';
+const heartbeatKey = `workers:heartbeat:${config.workerId}`;
+let managedWorker: Worker<JobData> | null = null;
+let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+let syncing = false;
+
+async function syncWorkerState() {
+  if (syncing) return;
+  syncing = true;
+  try {
+    const desiredRaw = await redisConnection.get(desiredWorkersKey);
+    const desiredWorkers = Math.max(2, Math.min(4, Number.parseInt(desiredRaw || '2', 10) || 2));
+    const shouldRun = workerSlot <= desiredWorkers;
+
+    if (shouldRun && !managedWorker) {
+      managedWorker = createWorker();
+      const refreshHeartbeat = () => redisConnection.set(heartbeatKey, String(Date.now()), 'EX', 15).catch(() => {});
+      refreshHeartbeat();
+      heartbeatTimer = setInterval(refreshHeartbeat, 5_000);
+      heartbeatTimer.unref();
+      console.log(`[${config.workerId}] Worker slot ${workerSlot} enabled (target ${desiredWorkers}).`);
+    } else if (!shouldRun && managedWorker) {
+      await managedWorker.close();
+      managedWorker = null;
+      if (heartbeatTimer) clearInterval(heartbeatTimer);
+      heartbeatTimer = null;
+      await redisConnection.del(heartbeatKey);
+      console.log(`[${config.workerId}] Worker slot ${workerSlot} paused (target ${desiredWorkers}).`);
+    }
+  } catch (error) {
+    console.error(`[${config.workerId}] Could not sync worker scale:`, (error as Error).message);
+  } finally {
+    syncing = false;
+  }
+}
+
+void syncWorkerState();
+const scalePoll = setInterval(() => void syncWorkerState(), 2_000);
+scalePoll.unref();

@@ -19,15 +19,26 @@ export async function processBenchmark(
   if (await isTaskCancelled(taskId)) throw new Error('TASK_CANCELLED');
 
   const complexity = Math.min(10, Math.max(1, Number(options.complexity || 5)));
-  // Steps count based on complexity
-  const totalSteps = 10;
-  // Size of computation batch per step
-  const matrixSize = 80 + complexity * 25; // Matrix of size up to 330x330 (millions of floating point ops)
+  // One full multiplication is the workload. At complexity 10 this is 2550x2550,
+  // or about 16.6 billion multiply-accumulate operations.
+  const matrixSize = 2350 + complexity * 20;
 
   await onProgress(5, `Initializing compute stress test (complexity: ${complexity}/10, matrix: ${matrixSize}x${matrixSize})`);
 
   const startTime = Date.now();
   let operationsCount = 0;
+  const totalSteps = 10;
+
+  const A = new Float64Array(matrixSize * matrixSize);
+  const B = new Float64Array(matrixSize * matrixSize);
+  const C = new Float64Array(matrixSize * matrixSize);
+
+  for (let i = 0; i < matrixSize * matrixSize; i++) {
+    A[i] = Math.sin(i + 1);
+    B[i] = Math.cos(i * 1.5 + 1);
+  }
+
+  const rowsPerStep = Math.ceil(matrixSize / totalSteps);
 
   for (let step = 1; step <= totalSteps; step++) {
     if (await isTaskCancelled(taskId)) {
@@ -35,24 +46,17 @@ export async function processBenchmark(
       throw new Error('TASK_CANCELLED');
     }
 
-    const currentPercent = Math.round((step / totalSteps) * 90);
+    const currentPercent = Math.round(5 + (step / totalSteps) * 85);
     await onProgress(
       currentPercent,
       `Step ${step}/${totalSteps}: Calculating matrix transforms and solution iterations`
     );
 
-    // Perform intensive CPU calculations (matrix multiply and relaxation)
-    const A = new Float64Array(matrixSize * matrixSize);
-    const B = new Float64Array(matrixSize * matrixSize);
-    const C = new Float64Array(matrixSize * matrixSize);
-
-    for (let i = 0; i < matrixSize * matrixSize; i++) {
-      A[i] = Math.sin(i + step);
-      B[i] = Math.cos(i * 1.5 + step);
-    }
-
-    // Multiply block
-    for (let i = 0; i < matrixSize; i++) {
+    // Calculate row blocks of one full matrix multiplication. This yields to
+    // the event loop between blocks so cancellation and progress stay responsive.
+    const firstRow = (step - 1) * rowsPerStep;
+    const lastRow = Math.min(matrixSize, firstRow + rowsPerStep);
+    for (let i = firstRow; i < lastRow; i++) {
       for (let k = 0; k < matrixSize; k++) {
         const aik = A[i * matrixSize + k];
         for (let j = 0; j < matrixSize; j++) {
@@ -62,7 +66,6 @@ export async function processBenchmark(
       }
     }
 
-    // Yield control so cancellation signals and Redis events are immediately handled
     await yieldEventLoop();
   }
 
@@ -75,6 +78,7 @@ export async function processBenchmark(
     status: 'COMPLETED',
     complexity,
     matrixSize: `${matrixSize}x${matrixSize}`,
+    passesPerformed: 1,
     operationsPerformed: operationsCount,
     executionTimeMs: durationMs,
     opsPerSecond: Math.round((operationsCount / (durationMs || 1)) * 1000),

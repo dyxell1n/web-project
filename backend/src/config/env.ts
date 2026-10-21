@@ -12,6 +12,8 @@ export const config = {
   jwtSecret: process.env.JWT_SECRET || 'default_jwt_secret_change_in_production',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   maxFileSizeMb: parseInt(process.env.MAX_FILE_SIZE_MB || '50', 10),
-  maxConcurrentTasksPerUser: parseInt(process.env.MAX_CONCURRENT_TASKS_PER_USER || '3', 10),
+  maxConcurrentTasksPerUser: parseInt(process.env.MAX_CONCURRENT_TASKS_PER_USER || '6', 10),
   taskTimeoutSeconds: parseInt(process.env.TASK_TIMEOUT_SECONDS || '120', 10),
+  adminEmails: (process.env.ADMIN_EMAILS || '').split(',').map((email) => email.trim().toLowerCase()).filter(Boolean),
+  adminRegistrationCode: process.env.ADMIN_REGISTRATION_CODE || '',
 };

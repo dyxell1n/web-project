@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { timingSafeEqual } from 'node:crypto';
 import { prisma } from '../db/prisma.js';
 import { config } from '../config/env.js';
 
@@ -11,7 +12,7 @@ export interface UserPayload {
 }
 
 export class AuthService {
-  static async register(email: string, password: string, name?: string) {
+  static async register(email: string, password: string, name?: string, adminRegistrationCode?: string) {
     const normalizedEmail = email.trim().toLowerCase();
     
     if (!normalizedEmail || !normalizedEmail.includes('@')) {
@@ -19,6 +20,18 @@ export class AuthService {
     }
     if (!password || password.length < 6) {
       throw new Error('Password must be at least 6 characters long');
+    }
+
+    const isAdminRegistration = adminRegistrationCode !== undefined;
+    if (isAdminRegistration) {
+      if (typeof adminRegistrationCode !== 'string' || adminRegistrationCode.length > 256) {
+        throw new Error('Invalid admin registration code');
+      }
+      const expectedCode = Buffer.from(config.adminRegistrationCode);
+      const providedCode = Buffer.from(adminRegistrationCode);
+      if (expectedCode.length === 0 || expectedCode.length !== providedCode.length || !timingSafeEqual(expectedCode, providedCode)) {
+        throw new Error('Invalid admin registration code');
+      }
     }
 
     const existingUser = await prisma.user.findUnique({
@@ -37,6 +50,7 @@ export class AuthService {
         email: normalizedEmail,
         passwordHash,
         name: name?.trim() || null,
+        ...(isAdminRegistration ? { role: 'ADMIN' as const } : {}),
       },
       select: {
         id: true,
@@ -73,10 +87,11 @@ export class AuthService {
       throw new Error('Incorrect email or password');
     }
 
+    const role = user.role === 'ADMIN' || config.adminEmails.includes(normalizedEmail) ? 'ADMIN' : user.role;
     const token = this.generateToken({
       id: user.id,
       email: user.email,
-      role: user.role,
+      role,
       name: user.name,
     });
 
@@ -85,7 +100,7 @@ export class AuthService {
         id: user.id,
         email: user.email,
         name: user.name,
-        role: user.role,
+        role,
         createdAt: user.createdAt,
       },
       token,

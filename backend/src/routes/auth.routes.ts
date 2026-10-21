@@ -7,20 +7,21 @@ const router = Router();
 // POST /api/auth/register
 router.post('/register', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const { email, password, name } = req.body;
+    const { email, password, name, adminRegistrationCode } = req.body;
     if (!email || !password) {
       res.status(400).json({ error: 'Email and password are required' });
       return;
     }
 
-    const result = await AuthService.register(email, password, name);
+    const result = await AuthService.register(email, password, name, adminRegistrationCode);
     res.status(201).json({
       message: 'Account created successfully',
       user: result.user,
       token: result.token,
     });
   } catch (error) {
-    res.status(400).json({ error: (error as Error).message });
+    const message = (error as Error).message;
+    res.status(message === 'Invalid admin registration code' ? 403 : 400).json({ error: message });
   }
 });
 

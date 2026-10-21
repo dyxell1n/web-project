@@ -9,8 +9,30 @@ import { taskQueue } from '../queue/redis.js';
 import { setTaskCancelled, createRedisSubscriber } from '../queue/events.js';
 import { config } from '../config/env.js';
 import { getUploadFilePath, getOutputFilePath, uploadsDir } from '../utils/storage.js';
+import { estimateWaitSeconds, getAverageExecutionMs, getQueuePositionMap } from '../services/queue-metrics.service.js';
 
 const router = Router();
+
+type QueueEstimate = { queuePosition?: number | null; estimatedWaitSeconds?: number | null };
+
+async function attachQueueEstimate<T extends { id: string; status: string }>(tasks: T[]): Promise<Array<T & QueueEstimate>> {
+  const queuedTasks = tasks.filter((task) => ['PENDING', 'QUEUED'].includes(task.status));
+  const processingTasks = tasks.filter((task) => task.status === 'PROCESSING');
+  if (queuedTasks.length === 0 && processingTasks.length === 0) return tasks as Array<T & QueueEstimate>;
+
+  const [positions, averageExecutionMs] = await Promise.all([getQueuePositionMap(), getAverageExecutionMs()]);
+
+  return tasks.map((task) => {
+    if (task.status === 'PROCESSING') {
+      const progress = Math.max(0, Math.min(100, Number((task as T & { progress?: number }).progress) || 0));
+      return { ...task, queuePosition: null, estimatedWaitSeconds: Math.ceil((averageExecutionMs / 1000) * ((100 - progress) / 100)) };
+    }
+    if (!['PENDING', 'QUEUED'].includes(task.status)) return task as T & QueueEstimate;
+    const queuePosition = positions.get(task.id) ?? null;
+    const estimatedWaitSeconds = queuePosition == null ? null : estimateWaitSeconds(queuePosition, averageExecutionMs);
+    return { ...task, queuePosition, estimatedWaitSeconds };
+  });
+}
 
 // POST /api/tasks/generate-demo - Helper to create a dummy test file of given size
 router.post('/generate-demo', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -163,7 +185,7 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): P
       orderBy: { createdAt: 'desc' },
       take: 50,
     });
-    res.json({ tasks });
+    res.json({ tasks: await attachQueueEstimate(tasks) });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }
@@ -187,7 +209,8 @@ router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
       return;
     }
 
-    res.json({ task });
+    const [estimatedTasks] = await attachQueueEstimate([task]);
+    res.json({ task: estimatedTasks });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }
@@ -297,6 +320,8 @@ router.get('/:id/events', requireAuth, async (req: AuthenticatedRequest, res: Re
     res.setHeader('X-Accel-Buffering', 'no'); // Disable Nginx buffering
     res.flushHeaders();
 
+    const [estimatedTask] = await attachQueueEstimate([task]);
+
     // Send initial state immediately
     res.write(
       `data: ${JSON.stringify({
@@ -304,6 +329,8 @@ router.get('/:id/events', requireAuth, async (req: AuthenticatedRequest, res: Re
         status: task.status,
         progress: task.progress,
         stage: task.stage,
+        queuePosition: estimatedTask.queuePosition,
+        estimatedWaitSeconds: estimatedTask.estimatedWaitSeconds,
         workerId: task.workerId,
         outputFileName: task.outputFileName,
         errorMessage: task.errorMessage,
@@ -323,15 +350,20 @@ router.get('/:id/events', requireAuth, async (req: AuthenticatedRequest, res: Re
     await subscriber.subscribe(channel);
 
     subscriber.on('message', (_ch, message) => {
-      res.write(`data: ${message}\n\n`);
-      try {
-        const parsed = JSON.parse(message);
-        if (['COMPLETED', 'FAILED', 'CANCELLED'].includes(parsed.status)) {
-          subscriber.unsubscribe();
-          subscriber.quit();
-          res.end();
+      void (async () => {
+        try {
+          const parsed = JSON.parse(message);
+          const [estimated] = await attachQueueEstimate([parsed]);
+          res.write(`data: ${JSON.stringify({ ...parsed, queuePosition: estimated.queuePosition, estimatedWaitSeconds: estimated.estimatedWaitSeconds })}\n\n`);
+          if (['COMPLETED', 'FAILED', 'CANCELLED'].includes(parsed.status)) {
+            await subscriber.unsubscribe();
+            await subscriber.quit();
+            res.end();
+          }
+        } catch {
+          res.write(`data: ${message}\n\n`);
         }
-      } catch {}
+      })();
     });
 
     // Keepalive ping every 15 seconds

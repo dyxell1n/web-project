@@ -55,7 +55,9 @@ services:
       JWT_SECRET: ${JWT_SECRET:-media_archiver_jwt_super_secret_key_2026}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
       MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-50}
-      MAX_CONCURRENT_TASKS_PER_USER: ${MAX_CONCURRENT_TASKS_PER_USER:-3}
+      MAX_CONCURRENT_TASKS_PER_USER: ${MAX_CONCURRENT_TASKS_PER_USER:-6}
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
+      ADMIN_REGISTRATION_CODE: ${ADMIN_REGISTRATION_CODE:-}
       TASK_TIMEOUT_SECONDS: ${TASK_TIMEOUT_SECONDS:-120}
     volumes:
       - storage_data:/app/storage
@@ -84,7 +86,9 @@ services:
       JWT_SECRET: ${JWT_SECRET:-media_archiver_jwt_super_secret_key_2026}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
       MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-50}
-      MAX_CONCURRENT_TASKS_PER_USER: ${MAX_CONCURRENT_TASKS_PER_USER:-3}
+      MAX_CONCURRENT_TASKS_PER_USER: ${MAX_CONCURRENT_TASKS_PER_USER:-6}
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
+      ADMIN_REGISTRATION_CODE: ${ADMIN_REGISTRATION_CODE:-}
       TASK_TIMEOUT_SECONDS: ${TASK_TIMEOUT_SECONDS:-120}
     volumes:
       - storage_data:/app/storage
@@ -107,6 +111,7 @@ services:
     environment:
       NODE_ENV: production
       WORKER_ID: WORKER_1
+      WORKER_SLOT: 1
       DATABASE_URL: postgresql://postgres:postgres@db:5432/media_archiver?schema=public
       REDIS_URL: redis://redis:6379
       STORAGE_PATH: /app/storage
@@ -132,12 +137,83 @@ services:
     environment:
       NODE_ENV: production
       WORKER_ID: WORKER_2
+      WORKER_SLOT: 2
       DATABASE_URL: postgresql://postgres:postgres@db:5432/media_archiver?schema=public
       REDIS_URL: redis://redis:6379
       STORAGE_PATH: /app/storage
       TASK_TIMEOUT_SECONDS: ${TASK_TIMEOUT_SECONDS:-120}
     volumes:
       - storage_data:/app/storage
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - app_network
+
+  # Standby worker slots are enabled by the Redis-backed autoscaler.
+  worker3:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: web_worker3
+    restart: unless-stopped
+    command: ["npm", "run", "start:worker"]
+    environment:
+      NODE_ENV: production
+      WORKER_ID: WORKER_3
+      WORKER_SLOT: 3
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/media_archiver?schema=public
+      REDIS_URL: redis://redis:6379
+      STORAGE_PATH: /app/storage
+      TASK_TIMEOUT_SECONDS: ${TASK_TIMEOUT_SECONDS:-120}
+    volumes:
+      - storage_data:/app/storage
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - app_network
+
+  worker4:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: web_worker4
+    restart: unless-stopped
+    command: ["npm", "run", "start:worker"]
+    environment:
+      NODE_ENV: production
+      WORKER_ID: WORKER_4
+      WORKER_SLOT: 4
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/media_archiver?schema=public
+      REDIS_URL: redis://redis:6379
+      STORAGE_PATH: /app/storage
+      TASK_TIMEOUT_SECONDS: ${TASK_TIMEOUT_SECONDS:-120}
+    volumes:
+      - storage_data:/app/storage
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - app_network
+
+  autoscaler:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: web_autoscaler
+    restart: unless-stopped
+    command: ["node", "dist/watcher.js"]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/media_archiver?schema=public
+      REDIS_URL: redis://redis:6379
     depends_on:
       db:
         condition: service_healthy

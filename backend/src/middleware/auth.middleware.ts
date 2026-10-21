@@ -47,3 +47,11 @@ export function optionalAuth(req: AuthenticatedRequest, _res: Response, next: Ne
   }
   next();
 }
+
+export function requireAdmin(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
+  if (req.user?.role !== 'ADMIN') {
+    res.status(403).json({ error: 'Administrator access required' });
+    return;
+  }
+  next();
+}

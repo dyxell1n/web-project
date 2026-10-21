@@ -8,6 +8,7 @@ import { redisConnection } from './queue/redis.js';
 import { initStorage } from './utils/storage.js';
 import authRoutes from './routes/auth.routes.js';
 import taskRoutes from './routes/task.routes.js';
+import adminRoutes from './routes/admin.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -77,6 +78,7 @@ app.get('/api/status', async (_req: Request, res: Response) => {
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/tasks', taskRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Fallback to index.html for root or SPA
 app.get('*', (req: Request, res: Response) => {
