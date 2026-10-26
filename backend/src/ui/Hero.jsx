@@ -27,6 +27,5 @@ export default function Hero({ lbResult, lbStats, ping }) {
         </span>
       </button>
     </div>
-    <div className="hero-credit"><span>OLEKSANDR BEZKOROVAINY</span><i /><span>PMI-33</span></div>
   </section>;
 }

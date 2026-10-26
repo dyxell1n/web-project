@@ -42,11 +42,12 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      target: builder
     container_name: web_api1
     restart: unless-stopped
-    command: ["npm", "run", "start:migrate"]
+    command: ["sh", "-c", "npx prisma db push --skip-generate && npm run dev"]
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       PORT: 3000
       SERVER_NAME: API_SERVER_1
       DATABASE_URL: postgresql://postgres:postgres@db:5432/media_archiver?schema=public
@@ -59,7 +60,10 @@ services:
       ADMIN_EMAILS: ${ADMIN_EMAILS:-}
       ADMIN_REGISTRATION_CODE: ${ADMIN_REGISTRATION_CODE:-}
       TASK_TIMEOUT_SECONDS: ${TASK_TIMEOUT_SECONDS:-120}
+      CHOKIDAR_USEPOLLING: "true"
     volumes:
+      - ./backend:/app
+      - /app/node_modules
       - storage_data:/app/storage
     depends_on:
       db:
@@ -74,10 +78,12 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      target: builder
     container_name: web_api2
     restart: unless-stopped
+    command: ["npm", "run", "dev"]
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       PORT: 3000
       SERVER_NAME: API_SERVER_2
       DATABASE_URL: postgresql://postgres:postgres@db:5432/media_archiver?schema=public
@@ -90,7 +96,10 @@ services:
       ADMIN_EMAILS: ${ADMIN_EMAILS:-}
       ADMIN_REGISTRATION_CODE: ${ADMIN_REGISTRATION_CODE:-}
       TASK_TIMEOUT_SECONDS: ${TASK_TIMEOUT_SECONDS:-120}
+      CHOKIDAR_USEPOLLING: "true"
     volumes:
+      - ./backend:/app
+      - /app/node_modules
       - storage_data:/app/storage
     depends_on:
       db:
@@ -105,18 +114,22 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      target: builder
     container_name: web_worker1
     restart: unless-stopped
-    command: ["npm", "run", "start:worker"]
+    command: ["npm", "run", "dev:worker"]
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       WORKER_ID: WORKER_1
       WORKER_SLOT: 1
       DATABASE_URL: postgresql://postgres:postgres@db:5432/media_archiver?schema=public
       REDIS_URL: redis://redis:6379
       STORAGE_PATH: /app/storage
       TASK_TIMEOUT_SECONDS: ${TASK_TIMEOUT_SECONDS:-120}
+      CHOKIDAR_USEPOLLING: "true"
     volumes:
+      - ./backend:/app
+      - /app/node_modules
       - storage_data:/app/storage
     depends_on:
       db:
@@ -131,18 +144,22 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      target: builder
     container_name: web_worker2
     restart: unless-stopped
-    command: ["npm", "run", "start:worker"]
+    command: ["npm", "run", "dev:worker"]
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       WORKER_ID: WORKER_2
       WORKER_SLOT: 2
       DATABASE_URL: postgresql://postgres:postgres@db:5432/media_archiver?schema=public
       REDIS_URL: redis://redis:6379
       STORAGE_PATH: /app/storage
       TASK_TIMEOUT_SECONDS: ${TASK_TIMEOUT_SECONDS:-120}
+      CHOKIDAR_USEPOLLING: "true"
     volumes:
+      - ./backend:/app
+      - /app/node_modules
       - storage_data:/app/storage
     depends_on:
       db:
@@ -157,18 +174,22 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      target: builder
     container_name: web_worker3
     restart: unless-stopped
-    command: ["npm", "run", "start:worker"]
+    command: ["npm", "run", "dev:worker"]
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       WORKER_ID: WORKER_3
       WORKER_SLOT: 3
       DATABASE_URL: postgresql://postgres:postgres@db:5432/media_archiver?schema=public
       REDIS_URL: redis://redis:6379
       STORAGE_PATH: /app/storage
       TASK_TIMEOUT_SECONDS: ${TASK_TIMEOUT_SECONDS:-120}
+      CHOKIDAR_USEPOLLING: "true"
     volumes:
+      - ./backend:/app
+      - /app/node_modules
       - storage_data:/app/storage
     depends_on:
       db:
@@ -182,18 +203,22 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      target: builder
     container_name: web_worker4
     restart: unless-stopped
-    command: ["npm", "run", "start:worker"]
+    command: ["npm", "run", "dev:worker"]
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       WORKER_ID: WORKER_4
       WORKER_SLOT: 4
       DATABASE_URL: postgresql://postgres:postgres@db:5432/media_archiver?schema=public
       REDIS_URL: redis://redis:6379
       STORAGE_PATH: /app/storage
       TASK_TIMEOUT_SECONDS: ${TASK_TIMEOUT_SECONDS:-120}
+      CHOKIDAR_USEPOLLING: "true"
     volumes:
+      - ./backend:/app
+      - /app/node_modules
       - storage_data:/app/storage
     depends_on:
       db:
@@ -222,6 +247,28 @@ services:
     networks:
       - app_network
 
+  # Vite development server. Nginx exposes it on ports 80 and 443.
+  frontend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: builder
+    container_name: web_frontend_dev
+    restart: unless-stopped
+    command: ["npm", "run", "dev:frontend"]
+    environment:
+      VITE_API_TARGET: http://api1:3000
+      VITE_USE_POLLING: "true"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    expose:
+      - "5173"
+    depends_on:
+      - api1
+    networks:
+      - app_network
+
   # Load Balancer: Nginx (Ports 80 HTTP & 443 HTTPS)
   nginx:
     build:
@@ -232,9 +279,10 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    volumes:
+      - ./nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
     depends_on:
-      - api1
-      - api2
+      - frontend
     networks:
       - app_network
 
